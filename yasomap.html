@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>野草マップ</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a2e1a">
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+
+<style>
+  :root {
+    --green-deep: #1a2e1a;
+    --green-mid: #2d5a27;
+    --green-light: #4a8c3f;
+    --green-pale: #7bc47a;
+    --accent: #c8e6a0;
+    --earth: #8b6914;
+    --earth-light: #c4a35a;
+    --white: #f5f0e8;
+    --panel-bg: rgba(20, 35, 20, 0.96);
+    --card-bg: rgba(35, 60, 30, 0.9);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+    background: var(--green-deep);
+    color: var(--white);
+    height: 100dvh;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ===== LOGIN SCREEN ===== */
+  #login-screen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: linear-gradient(160deg, #0d1f0d 0%, #1a3319 50%, #0d1a0d 100%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 32px; padding: 40px 24px;
+  }
+
+  .login-logo {
+    text-align: center;
+  }
+
+  .login-logo .icon {
+    font-size: 56px; margin-bottom: 12px;
+    filter: drop-shadow(0 0 20px rgba(122, 196, 122, 0.4));
+    animation: float 3s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .login-logo h1 {
+    font-size: 28px; font-weight: 700; letter-spacing: 0.15em;
+    color: var(--accent);
+    text-shadow: 0 0 30px rgba(200, 230, 160, 0.3);
+  }
+
+  .login-logo p {
+    font-size: 12px; color: var(--green-pale); margin-top: 6px;
+    letter-spacing: 0.1em;
+  }
+
+  .login-form {
+    width: 100%; max-width: 320px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+
+  .login-form input {
+    width: 100%; padding: 14px 18px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(122, 196, 122, 0.25);
+    border-radius: 12px;
+    color: var(--white); font-size: 16px;
+    outline: none; transition: border-color 0.2s;
+  }
+
+  .login-form input:focus {
+    border-color: var(--green-pale);
+    background: rgba(255,255,255,0.1);
+  }
+
+  .login-form input::placeholder { color: rgba(255,255,255,0.3); }
+
+  .btn-login {
+    width: 100%; padding: 16px;
+    background: linear-gradient(135deg, var(--green-mid), var(--green-light));
+    border: none; border-radius: 12px;
+    color: white; font-size: 16px; font-weight: 700;
+    letter-spacing: 0.1em; cursor: pointer;
+    transition: all 0.2s; box-shadow: 0 4px 20px rgba(74, 140, 63, 0.4);
+  }
+
+  .btn-login:active { transform: scale(0.97); }
+
+  #login-error {
+    color: #ff8a80; font-size: 13px; text-align: center;
+    display: none; padding: 10px;
+    background: rgba(255, 100, 100, 0.1);
+    border-radius: 8px;
+  }
+
+  /* ===== MAP ===== */
+  #map {
+    width: 100%; height: 100dvh;
+    position: absolute; top: 0; left: 0;
+  }
+
+  /* Leaflet customization */
+  .leaflet-container { background: #2a3d2a; }
+
+  /* ===== TOP BAR ===== */
+  .top-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(to bottom, rgba(15,25,15,0.9) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  .app-title {
+    display: flex; align-items: center; gap: 8px;
+    pointer-events: auto;
+  }
+
+  .app-title span { font-size: 22px; }
+  .app-title h2 { font-size: 16px; font-weight: 700; color: var(--accent); letter-spacing: 0.1em; }
+
+  .top-actions {
+    display: flex; gap: 8px;
+    pointer-events: auto;
+  }
+
+  .icon-btn {
+    width: 40px; height: 40px;
+    background: var(--panel-bg);
+    border: 1px solid rgba(122,196,122,0.2);
+    border-radius: 10px; color: var(--accent);
+    font-size: 16px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+
+  .icon-btn:active { transform: scale(0.93); background: var(--green-mid); }
+
+  /* ===== MAP CONTROLS ===== */
+  .map-controls {
+    position: fixed; right: 16px; bottom: 200px; z-index: 1000;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+
+  /* ===== GPS BUTTON ===== */
+  .gps-btn {
+    position: fixed; right: 16px; bottom: 160px; z-index: 1000;
+    width: 52px; height: 52px;
+    background: linear-gradient(135deg, var(--green-mid), var(--green-light));
+    border: none; border-radius: 14px;
+    color: white; font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 16px rgba(45, 90, 39, 0.5);
+    transition: all 0.2s;
+  }
+
+  .gps-btn:active { transform: scale(0.93); }
+  .gps-btn.locating { animation: pulse-green 1s infinite; }
+
+  @keyframes pulse-green {
+    0%, 100% { box-shadow: 0 4px 16px rgba(45,90,39,0.5); }
+    50% { box-shadow: 0 4px 30px rgba(74,140,63,0.8); }
+  }
+
+  /* ===== ADD SPOT BUTTON ===== */
+  .add-btn {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: 24px; z-index: 1000;
+    padding: 16px 36px;
+    background: linear-gradient(135deg, var(--green-mid), var(--green-light));
+    border: none; border-radius: 50px;
+    color: white; font-size: 15px; font-weight: 700;
+    letter-spacing: 0.1em; cursor: pointer;
+    box-shadow: 0 6px 24px rgba(45,90,39,0.6);
+    display: flex; align-items: center; gap: 8px;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .add-btn:active { transform: translateX(-50%) scale(0.96); }
+
+  /* ===== BOTTOM SHEET ===== */
+  .bottom-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 2000;
+    background: var(--panel-bg);
+    border-radius: 20px 20px 0 0;
+    border-top: 1px solid rgba(122,196,122,0.2);
+    padding: 0 20px 40px;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    max-height: 85dvh;
+    overflow-y: auto;
+  }
+
+  .bottom-sheet.open { transform: translateY(0); }
+
+  .sheet-handle {
+    width: 40px; height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px; margin: 12px auto 20px;
+  }
+
+  .sheet-title {
+    font-size: 18px; font-weight: 700; color: var(--accent);
+    margin-bottom: 20px; display: flex; align-items: center; gap: 8px;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-label {
+    font-size: 12px; color: var(--green-pale);
+    letter-spacing: 0.08em; margin-bottom: 6px; display: block;
+  }
+
+  .form-input, .form-textarea {
+    width: 100%; padding: 13px 16px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(122,196,122,0.2);
+    border-radius: 10px; color: var(--white);
+    font-size: 16px; outline: none;
+    transition: border-color 0.2s;
+    font-family: inherit;
+  }
+
+  .form-input:focus, .form-textarea:focus {
+    border-color: var(--green-pale);
+    background: rgba(255,255,255,0.1);
+  }
+
+  .form-textarea { resize: none; height: 80px; }
+
+  /* Plant suggestions */
+  .plant-suggestions {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;
+  }
+
+  .plant-tag {
+    padding: 6px 12px;
+    background: rgba(74,140,63,0.2);
+    border: 1px solid rgba(74,140,63,0.4);
+    border-radius: 20px; font-size: 13px;
+    color: var(--accent); cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .plant-tag:active { background: rgba(74,140,63,0.5); }
+
+  .location-info {
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px; font-size: 12px;
+    color: var(--green-pale); margin-bottom: 16px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .btn-save {
+    width: 100%; padding: 16px;
+    background: linear-gradient(135deg, var(--green-mid), var(--green-light));
+    border: none; border-radius: 12px;
+    color: white; font-size: 16px; font-weight: 700;
+    cursor: pointer; margin-top: 8px;
+    transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(74,140,63,0.4);
+  }
+
+  .btn-save:active { transform: scale(0.98); }
+  .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-cancel {
+    width: 100%; padding: 14px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 12px; color: rgba(255,255,255,0.5);
+    font-size: 15px; cursor: pointer; margin-top: 8px;
+  }
+
+  /* ===== SPOT LIST SHEET ===== */
+  .spot-card {
+    padding: 14px 16px;
+    background: var(--card-bg);
+    border-radius: 12px; margin-bottom: 10px;
+    border: 1px solid rgba(122,196,122,0.15);
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+
+  .spot-card:active { background: rgba(74,140,63,0.3); }
+
+  .spot-icon {
+    font-size: 28px; flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .spot-info { flex: 1; min-width: 0; }
+
+  .spot-name {
+    font-size: 16px; font-weight: 700; color: var(--accent);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .spot-meta {
+    font-size: 12px; color: var(--green-pale); margin-top: 3px;
+  }
+
+  .spot-memo {
+    font-size: 13px; color: rgba(255,255,255,0.6);
+    margin-top: 4px; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .spot-delete {
+    background: transparent; border: none;
+    color: rgba(255,100,100,0.5); font-size: 16px;
+    cursor: pointer; padding: 4px;
+    flex-shrink: 0;
+  }
+
+  /* ===== DETAIL SHEET ===== */
+  .detail-plant-name {
+    font-size: 24px; font-weight: 700; color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .detail-coords {
+    font-size: 12px; color: var(--green-pale);
+    display: flex; align-items: center; gap: 6px; margin-bottom: 16px;
+  }
+
+  .detail-memo {
+    padding: 14px 16px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px; font-size: 14px;
+    line-height: 1.7; color: rgba(255,255,255,0.8);
+  }
+
+  /* ===== CUSTOM MARKER ===== */
+  .custom-marker {
+    background: linear-gradient(135deg, #2d5a27, #4a8c3f);
+    border: 2px solid var(--accent);
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.4);
+  }
+
+  .custom-marker span {
+    transform: rotate(45deg);
+    font-size: 16px; display: block;
+  }
+
+  /* ===== CURRENT LOCATION MARKER ===== */
+  .my-location-marker {
+    width: 18px; height: 18px;
+    background: #4fc3f7;
+    border: 3px solid white;
+    border-radius: 50%;
+    box-shadow: 0 0 0 4px rgba(79,195,247,0.3);
+  }
+
+  /* ===== TOAST ===== */
+  .toast {
+    position: fixed; bottom: 100px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--green-mid);
+    color: white; padding: 12px 20px;
+    border-radius: 25px; font-size: 14px;
+    opacity: 0; transition: all 0.3s;
+    pointer-events: none; z-index: 9000;
+    white-space: nowrap;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  }
+
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  /* ===== OVERLAY ===== */
+  .overlay {
+    position: fixed; inset: 0; z-index: 1500;
+    background: rgba(0,0,0,0.5);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  .overlay.show { opacity: 1; pointer-events: auto; }
+
+  /* ===== LOADING ===== */
+  .loading-spinner {
+    display: inline-block; width: 20px; height: 20px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Leaflet popup customization */
+  .leaflet-popup-content-wrapper {
+    background: var(--panel-bg) !important;
+    border: 1px solid rgba(122,196,122,0.3) !important;
+    border-radius: 12px !important;
+    color: var(--white) !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
+  }
+
+  .leaflet-popup-tip { background: var(--panel-bg) !important; }
+  .leaflet-popup-close-button { color: var(--green-pale) !important; }
+
+  .popup-content { padding: 4px 4px; }
+  .popup-name { font-size: 15px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+  .popup-memo { font-size: 12px; color: rgba(255,255,255,0.6); }
+  .popup-date { font-size: 11px; color: var(--green-pale); margin-top: 6px; }
+
+  .empty-state {
+    text-align: center; padding: 40px 20px;
+    color: rgba(255,255,255,0.4);
+  }
+
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; line-height: 1.6; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(122,196,122,0.3); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-logo">
+    <div class="icon">🌿</div>
+    <h1>野草マップ</h1>
+    <p>採取スポット記録アプリ</p>
+  </div>
+  <div class="login-form">
+    <input type="email" id="login-email" placeholder="メールアドレス" autocomplete="email">
+    <input type="password" id="login-password" placeholder="パスワード" autocomplete="current-password">
+    <div id="login-error"></div>
+    <button class="btn-login" onclick="login()">
+      <span id="login-btn-text">ログイン</span>
+    </button>
+  </div>
+</div>
+
+<!-- MAP -->
+<div id="map"></div>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  <div class="app-title">
+    <span>🌿</span>
+    <h2>野草マップ</h2>
+  </div>
+  <div class="top-actions">
+    <button class="icon-btn" onclick="openSpotList()" title="スポット一覧">
+      <i class="fa-solid fa-list"></i>
+    </button>
+    <button class="icon-btn" onclick="logout()" title="ログアウト">
+      <i class="fa-solid fa-right-from-bracket"></i>
+    </button>
+  </div>
+</div>
+
+<!-- GPS BUTTON -->
+<button class="gps-btn" onclick="locateMe()" id="gps-btn" title="現在地">
+  <i class="fa-solid fa-location-crosshairs"></i>
+</button>
+
+<!-- ADD BUTTON -->
+<button class="add-btn" onclick="openAddSheet()">
+  <i class="fa-solid fa-plus"></i>
+  スポットを追加
+</button>
+
+<!-- OVERLAY -->
+<div class="overlay" id="overlay" onclick="closeAllSheets()"></div>
+
+<!-- ADD SPOT SHEET -->
+<div class="bottom-sheet" id="add-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">🌱 スポットを記録</div>
+  <div class="location-info" id="location-info">
+    <i class="fa-solid fa-location-dot"></i>
+    <span id="location-text">位置情報を取得中...</span>
+  </div>
+  <div class="form-group">
+    <label class="form-label">野草名 *</label>
+    <input type="text" class="form-input" id="plant-name" placeholder="例：ヨモギ" autocomplete="off">
+    <div class="plant-suggestions">
+      <div class="plant-tag" onclick="selectPlant('ヨモギ')">🌿 ヨモギ</div>
+      <div class="plant-tag" onclick="selectPlant('タンポポ')">🌼 タンポポ</div>
+      <div class="plant-tag" onclick="selectPlant('ノビル')">🧅 ノビル</div>
+      <div class="plant-tag" onclick="selectPlant('ツクシ')">🎋 ツクシ</div>
+      <div class="plant-tag" onclick="selectPlant('ワラビ')">🌱 ワラビ</div>
+      <div class="plant-tag" onclick="selectPlant('フキ')">🍃 フキ</div>
+      <div class="plant-tag" onclick="selectPlant('セリ')">🌿 セリ</div>
+      <div class="plant-tag" onclick="selectPlant('クズ')">🍀 クズ</div>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">メモ（任意）</label>
+    <textarea class="form-textarea" id="spot-memo" placeholder="採取量、状態、季節など..."></textarea>
+  </div>
+  <button class="btn-save" id="save-btn" onclick="saveSpot()">
+    <span id="save-btn-text">📍 保存する</span>
+  </button>
+  <button class="btn-cancel" onclick="closeAllSheets()">キャンセル</button>
+</div>
+
+<!-- SPOT LIST SHEET -->
+<div class="bottom-sheet" id="list-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">📍 採取スポット一覧</div>
+  <div id="spot-list-container"></div>
+</div>
+
+<!-- SPOT DETAIL SHEET -->
+<div class="bottom-sheet" id="detail-sheet">
+  <div class="sheet-handle"></div>
+  <div id="detail-content"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== SUPABASE CONFIG =====
+const SUPABASE_URL = 'https://wzqiumnldeondjlfeqoj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_qwYnw9tcoyI2OjdXuVSTSg_gB_3_Waa';
+
+// ===== STATE =====
+let map, currentLat, currentLng, currentUser, locationMarker;
+let spots = [];
+let pendingLat = null, pendingLng = null;
+
+// ===== SUPABASE HELPER =====
+async function supabase(method, path, body = null, token = null) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${token || SUPABASE_KEY}`
+  };
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(`${SUPABASE_URL}${path}`, opts);
+  const data = await res.json();
+  return { data, status: res.status, ok: res.ok };
+}
+
+async function supabaseAuth(endpoint, body) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+    body: JSON.stringify(body)
+  });
+  return await res.json();
+}
+
+// ===== LOGIN =====
+async function login() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  const btnText = document.getElementById('login-btn-text');
+
+  if (!email || !password) {
+    showLoginError('メールアドレスとパスワードを入力してください');
+    return;
+  }
+
+  btnText.innerHTML = '<span class="loading-spinner"></span>';
+  errEl.style.display = 'none';
+
+  const data = await supabaseAuth('token?grant_type=password', { email, password });
+
+  if (data.access_token) {
+    currentUser = data;
+    localStorage.setItem('yaso_session', JSON.stringify(data));
+    document.getElementById('login-screen').style.display = 'none';
+    initApp();
+  } else {
+    btnText.textContent = 'ログイン';
+    showLoginError('メールアドレスまたはパスワードが違います');
+  }
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+document.getElementById('login-password').addEventListener('keypress', e => {
+  if (e.key === 'Enter') login();
+});
+
+// Auto-login from session
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('yaso_session');
+  if (saved) {
+    try {
+      currentUser = JSON.parse(saved);
+      document.getElementById('login-screen').style.display = 'none';
+      initApp();
+    } catch(e) {
+      localStorage.removeItem('yaso_session');
+    }
+  }
+});
+
+function logout() {
+  if (!confirm('ログアウトしますか？')) return;
+  localStorage.removeItem('yaso_session');
+  currentUser = null;
+  location.reload();
+}
+
+// ===== INIT APP =====
+function initApp() {
+  // Init map
+  map = L.map('map', {
+    center: [31.9, 131.4], // Miyazaki
+    zoom: 13,
+    zoomControl: false
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  // Map click to add spot
+  map.on('click', (e) => {
+    pendingLat = e.latlng.lat;
+    pendingLng = e.latlng.lng;
+    openAddSheet();
+  });
+
+  loadSpots();
+  locateMe();
+}
+
+// ===== GPS =====
+function locateMe() {
+  const btn = document.getElementById('gps-btn');
+  btn.classList.add('locating');
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      currentLat = pos.coords.latitude;
+      currentLng = pos.coords.longitude;
+      btn.classList.remove('locating');
+
+      map.setView([currentLat, currentLng], 15);
+
+      if (locationMarker) map.removeLayer(locationMarker);
+      locationMarker = L.marker([currentLat, currentLng], {
+        icon: L.divIcon({
+          className: '',
+          html: '<div class="my-location-marker"></div>',
+          iconSize: [18, 18],
+          iconAnchor: [9, 9]
+        })
+      }).addTo(map).bindPopup('📍 現在地');
+
+      showToast('現在地を取得しました');
+    },
+    (err) => {
+      btn.classList.remove('locating');
+      showToast('GPS取得失敗。地図をタップしてスポット追加できます');
+    },
+    { enableHighAccuracy: true, timeout: 15000 }
+  );
+}
+
+// ===== LOAD SPOTS =====
+async function loadSpots() {
+  const token = currentUser?.access_token;
+  const { data } = await supabase('GET', '/rest/v1/spots?select=*&order=created_at.desc', null, token);
+  spots = Array.isArray(data) ? data : [];
+  renderSpotMarkers();
+}
+
+// ===== MARKERS =====
+const plantEmoji = {
+  'ヨモギ': '🌿', 'タンポポ': '🌼', 'ノビル': '🧅', 'ツクシ': '🎋',
+  'ワラビ': '🌱', 'フキ': '🍃', 'セリ': '🌿', 'クズ': '🍀'
+};
+
+function getEmoji(name) {
+  for (const [k, v] of Object.entries(plantEmoji)) {
+    if (name.includes(k)) return v;
+  }
+  return '🌱';
+}
+
+function renderSpotMarkers() {
+  // Remove old markers
+  map.eachLayer(layer => {
+    if (layer._isSpotMarker) map.removeLayer(layer);
+  });
+
+  spots.forEach(spot => {
+    const emoji = getEmoji(spot.plant_name);
+    const marker = L.marker([spot.lat, spot.lng], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div class="custom-marker"><span>${emoji}</span></div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 32]
+      })
+    });
+    marker._isSpotMarker = true;
+    marker.addTo(map);
+
+    const date = new Date(spot.created_at).toLocaleDateString('ja-JP');
+    marker.bindPopup(`
+      <div class="popup-content">
+        <div class="popup-name">${emoji} ${spot.plant_name}</div>
+        ${spot.memo ? `<div class="popup-memo">${spot.memo}</div>` : ''}
+        <div class="popup-date">📅 ${date}</div>
+      </div>
+    `);
+
+    marker.on('click', () => openDetailSheet(spot));
+  });
+}
+
+// ===== ADD SPOT =====
+function openAddSheet() {
+  // Use pending location or current location
+  const lat = pendingLat ?? currentLat;
+  const lng = pendingLng ?? currentLng;
+
+  if (lat && lng) {
+    document.getElementById('location-text').textContent =
+      `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  } else {
+    document.getElementById('location-text').textContent = '地図をタップして位置を指定してください';
+  }
+
+  document.getElementById('plant-name').value = '';
+  document.getElementById('spot-memo').value = '';
+
+  openSheet('add-sheet');
+}
+
+function selectPlant(name) {
+  document.getElementById('plant-name').value = name;
+}
+
+async function saveSpot() {
+  const plantName = document.getElementById('plant-name').value.trim();
+  const memo = document.getElementById('spot-memo').value.trim();
+
+  if (!plantName) {
+    showToast('野草名を入力してください');
+    return;
+  }
+
+  const lat = pendingLat ?? currentLat;
+  const lng = pendingLng ?? currentLng;
+
+  if (!lat || !lng) {
+    showToast('位置情報が取得できていません。地図をタップしてください');
+    return;
+  }
+
+  const btn = document.getElementById('save-btn');
+  const btnText = document.getElementById('save-btn-text');
+  btn.disabled = true;
+  btnText.innerHTML = '<span class="loading-spinner"></span> 保存中...';
+
+  const token = currentUser?.access_token;
+  const userId = currentUser?.user?.id;
+
+  const { ok } = await supabase('POST', '/rest/v1/spots', {
+    lat, lng,
+    plant_name: plantName,
+    memo: memo || null,
+    user_id: userId
+  }, token);
+
+  btn.disabled = false;
+  btnText.textContent = '📍 保存する';
+
+  if (ok) {
+    closeAllSheets();
+    pendingLat = null;
+    pendingLng = null;
+    await loadSpots();
+    showToast(`${getEmoji(plantName)} ${plantName} を記録しました！`);
+  } else {
+    showToast('保存に失敗しました。再度お試しください');
+  }
+}
+
+// ===== SPOT LIST =====
+function openSpotList() {
+  const container = document.getElementById('spot-list-container');
+
+  if (spots.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">🌱</div>
+        <p>まだスポットがありません<br>地図をタップして記録しましょう</p>
+      </div>`;
+  } else {
+    container.innerHTML = spots.map(spot => {
+      const emoji = getEmoji(spot.plant_name);
+      const date = new Date(spot.created_at).toLocaleDateString('ja-JP');
+      return `
+        <div class="spot-card" onclick="flyToSpot(${spot.lat}, ${spot.lng}, '${spot.id}')">
+          <div class="spot-icon">${emoji}</div>
+          <div class="spot-info">
+            <div class="spot-name">${spot.plant_name}</div>
+            <div class="spot-meta">📅 ${date}</div>
+            ${spot.memo ? `<div class="spot-memo">📝 ${spot.memo}</div>` : ''}
+          </div>
+          <button class="spot-delete" onclick="deleteSpot(event, '${spot.id}')">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>`;
+    }).join('');
+  }
+
+  openSheet('list-sheet');
+}
+
+function flyToSpot(lat, lng, id) {
+  closeAllSheets();
+  map.flyTo([lat, lng], 17, { duration: 1 });
+  const spot = spots.find(s => s.id === id);
+  if (spot) setTimeout(() => openDetailSheet(spot), 1000);
+}
+
+async function deleteSpot(e, id) {
+  e.stopPropagation();
+  if (!confirm('このスポットを削除しますか？')) return;
+
+  const token = currentUser?.access_token;
+  const { ok } = await supabase('DELETE', `/rest/v1/spots?id=eq.${id}`, null, token);
+
+  if (ok) {
+    await loadSpots();
+    openSpotList();
+    showToast('スポットを削除しました');
+  }
+}
+
+// ===== DETAIL SHEET =====
+function openDetailSheet(spot) {
+  const emoji = getEmoji(spot.plant_name);
+  const date = new Date(spot.created_at).toLocaleDateString('ja-JP', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="sheet-title">${emoji} 採取スポット詳細</div>
+    <div class="detail-plant-name">${spot.plant_name}</div>
+    <div class="detail-coords">
+      <i class="fa-solid fa-location-dot"></i>
+      ${spot.lat.toFixed(5)}, ${spot.lng.toFixed(5)}
+      &nbsp;|&nbsp; 📅 ${date}
+    </div>
+    ${spot.memo ? `<div class="detail-memo">📝 ${spot.memo}</div>` : ''}
+    <button class="btn-cancel" style="margin-top:20px" onclick="closeAllSheets()">閉じる</button>
+  `;
+
+  openSheet('detail-sheet');
+}
+
+// ===== SHEET HELPERS =====
+function openSheet(id) {
+  closeAllSheets(false);
+  document.getElementById(id).classList.add('open');
+  document.getElementById('overlay').classList.add('show');
+}
+
+function closeAllSheets(closeOverlay = true) {
+  ['add-sheet', 'list-sheet', 'detail-sheet'].forEach(id => {
+    document.getElementById(id).classList.remove('open');
+  });
+  if (closeOverlay) {
+    document.getElementById('overlay').classList.remove('show');
+    pendingLat = null;
+    pendingLng = null;
+  }
+}
+
+// ===== TOAST =====
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+</script>
+</body>
+</html>
